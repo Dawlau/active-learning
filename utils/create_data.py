@@ -25,9 +25,9 @@ from __future__ import print_function
 from io import BytesIO
 import os
 import pickle
-import StringIO
+from io import StringIO
 import tarfile
-import urllib2
+import urllib
 
 import keras.backend as K
 from keras.datasets import cifar10
@@ -37,23 +37,26 @@ from keras.datasets import mnist
 import numpy as np
 import pandas as pd
 from sklearn.datasets import fetch_20newsgroups_vectorized
-from sklearn.datasets import fetch_mldata
+from sklearn.datasets import fetch_openml
 from sklearn.datasets import load_breast_cancer
 from sklearn.datasets import load_iris
-import sklearn.datasets.rcv1
+# import sklearn.datasets.rcv1
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 
 from absl import app
 from absl import flags
-from tensorflow import gfile
+# from tensorflow import gfile
+import tensorflow.compat.v1.gfile as gfile
+import argparse
+import warnings
+warnings.filterwarnings("ignore")
 
-flags.DEFINE_string('save_dir', '/tmp/data',
+flags.DEFINE_string('save_dir', '/home/scur1917/active-learning/data',
                     'Where to save outputs')
-flags.DEFINE_string('datasets', '',
+flags.DEFINE_string('datasets', 'wine,dna,vehicle',
                     'Which datasets to download, comma separated.')
 FLAGS = flags.FLAGS
-
 
 class Dataset(object):
 
@@ -85,6 +88,10 @@ def get_csv_data(filename):
   data = Dataset(X, y)
   return data
 
+def download_file(url):
+    # req = urllib2.Request(url)
+    response = urllib.request.urlopen(req)
+    return response
 
 def get_wikipedia_talk_data():
   """Get wikipedia talk dataset.
@@ -96,11 +103,6 @@ def get_wikipedia_talk_data():
 
   ANNOTATED_COMMENTS_URL = 'https://ndownloader.figshare.com/files/7554634'
   ANNOTATIONS_URL = 'https://ndownloader.figshare.com/files/7554637'
-
-  def download_file(url):
-    req = urllib2.Request(url)
-    response = urllib2.urlopen(req)
-    return response
 
   # Process comments
   comments = pd.read_table(
@@ -165,10 +167,6 @@ def get_cifar10():
   in flat format instead of keras numpy image tensor.
   """
   url = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
-  def download_file(url):
-    req = urllib2.Request(url)
-    response = urllib2.urlopen(req)
-    return response
   response = download_file(url)
   tmpfile = BytesIO()
   while True:
@@ -200,7 +198,7 @@ def get_cifar10():
   return data
 
 
-def get_mldata(dataset):
+def get_opendata(dataset):
   # Use scikit to grab datasets and save them save_dir.
   save_dir = FLAGS.save_dir
   filename = os.path.join(save_dir, dataset[1]+'.pkl')
@@ -229,7 +227,7 @@ def get_mldata(dataset):
         'http://www.ai.mit.edu/projects/jmlr/papers/'
         'volume5/lewis04a/a08-topic-qrels/rcv1-v2.topics.qrels.gz')
       data = sklearn.datasets.fetch_rcv1(
-          data_home='/tmp')
+          data_home='/home/scur1917/active-learning')
     elif dataset[0] == 'wikipedia_attack':
       data = get_wikipedia_talk_data()
     elif dataset[0] == 'cifar10':
@@ -238,9 +236,9 @@ def get_mldata(dataset):
       data = get_keras_data(dataset[0])
     else:
       try:
-        data = fetch_mldata(dataset[0])
+        data = fetch_openml(dataset[0], version=1, cache=True)
       except:
-        raise Exception('ERROR: failed to fetch data from mldata.org')
+        raise Exception('ERROR: failed to fetch data from opendata.org')
     X = data.data
     y = data.target
     if X.shape[0] != y.shape[0]:
@@ -248,12 +246,14 @@ def get_mldata(dataset):
     assert X.shape[0] == y.shape[0]
 
     data = {'data': X, 'target': y}
-    pickle.dump(data, gfile.GFile(filename, 'w'))
+    with open(filename, 'wb') as dump_file:
+      pickle.dump(data, dump_file)
 
 
+#no: keras, cifar10, wikipedia_attack, rcv1, newgroup, iris, breast_cancer, csv
 def main(argv):
   del argv  # Unused.
-  # First entry of tuple is mldata.org name, second is the name that we'll use
+  # First entry of tuple is openml.org name, second is the name that we'll use
   # to reference the data.
   datasets = [('mnist (original)', 'mnist'), ('australian', 'australian'),
               ('heart', 'heart'), ('breast_cancer', 'breast_cancer'),
@@ -268,8 +268,8 @@ def main(argv):
               ('cifar100_keras', 'cifar100_keras'),
               ('cifar100_coarse_keras', 'cifar100_coarse_keras'),
               ('mnist_keras', 'mnist_keras'),
-              ('wikipedia_attack', 'wikipedia_attack'),
-              ('rcv1', 'rcv1')]
+              ('wikipedia_attack', 'wikipedia_attack')]
+              # ('rcv1', 'rcv1')]
 
   if FLAGS.datasets:
     subset = FLAGS.datasets.split(',')
@@ -277,7 +277,7 @@ def main(argv):
 
   for d in datasets:
     print(d[1])
-    get_mldata(d)
+    get_opendata(d)
 
 
 if __name__ == '__main__':

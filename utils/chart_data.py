@@ -21,28 +21,27 @@ from __future__ import print_function
 
 import os
 import pickle
-
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from absl import app
 from absl import flags
-from tensorflow import gfile
+import tensorflow.compat.v1.gfile as gfile
 
 flags.DEFINE_string('source_dir',
-                    '/tmp/toy_experiments',
+                    '/home/scur1917/active-learning/toy_experiments',
                     'Directory with the output to analyze.')
-flags.DEFINE_string('save_dir', '/tmp/active_learning',
+flags.DEFINE_string('save_dir', '/home/scur1917/active-learning/charts',
                     'Directory to save charts.')
-flags.DEFINE_string('dataset', 'letter', 'Dataset to analyze.')
+flags.DEFINE_string('dataset', 'wine', 'Dataset to analyze.')
 flags.DEFINE_string(
     'sampling_methods',
-    ('uniform,margin,informative_diverse,'
-     'pred_expert_advice_trip_agg,'
-     'mixture_of_samplers-margin-0.33-informative_diverse-0.33-uniform-0.34'),
+    ('margin'),
     'Comma separated string of sampling methods to include in chart.')
-flags.DEFINE_string('scoring_methods', 'logistic,kernel_ls',
+flags.DEFINE_string('scoring_methods', 'logistic',
                     'Comma separated string of scoring methods to chart.')
 flags.DEFINE_bool('normalize', False, 'Chart runs using normalized data.')
 flags.DEFINE_bool('standardize', True, 'Chart runs using standardized data.')
@@ -53,7 +52,7 @@ FLAGS = flags.FLAGS
 def combine_results(files, diff=False):
   all_results = {}
   for f in files:
-    data = pickle.load(gfile.FastGFile(f, 'r'))
+    data = pickle.load(gfile.FastGFile(f, 'rb'))
     for k in data:
       if isinstance(k, tuple):
         data[k].pop('noisy_targets')
@@ -118,7 +117,7 @@ def plot_results(all_results, score_method, norm, stand, sampler_filter):
   fields = all_results['tuple_keys']
   fields = dict(zip(fields, range(len(fields))))
 
-  for k in sorted(all_results.keys()):
+  for k in all_results.keys():
     sampler = k[fields['sampler']]
     if (isinstance(k, tuple) and
         k[fields['score_method']] == score_method and
@@ -126,7 +125,7 @@ def plot_results(all_results, score_method, norm, stand, sampler_filter):
         k[fields['normalize']] == norm and
         (sampler_filter is None or sampler in sampler_filter)):
       results = all_results[k]
-      n_trials = results['accuracy'].shape[0]
+      n_trials = len(results['accuracy'])#.shape[0]
       x = results['data_sizes'][0]
       mean_acc = np.mean(results['accuracy'], axis=0)
       CI_acc = np.std(results['accuracy'], axis=0) / np.sqrt(n_trials) * 2.96

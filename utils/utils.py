@@ -30,7 +30,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.svm import LinearSVC
 from sklearn.svm import SVC
 
-from tensorflow import gfile
+import tensorflow.compat.v1.gfile as gfile
 
 
 from utils.kernel_block_solver import BlockKernelSolver
@@ -117,7 +117,7 @@ def get_mldata(data_dir, name):
     filename = os.path.join(data_dir, dataname + ".pkl")
     if not gfile.Exists(filename):
       raise NameError("ERROR: dataset not available")
-    data = pickle.load(gfile.GFile(filename, "r"))
+    data = pickle.load(gfile.GFile(filename, "rb"))
     X = data["data"]
     y = data["target"]
     if "keras" in dataname:
@@ -183,7 +183,7 @@ def flip_label(y, percent_random):
   """
   classes = np.unique(y)
   y_orig = copy.copy(y)
-  indices = range(y_orig.shape[0])
+  indices = list(range(y_orig.shape[0]))
   np.random.shuffle(indices)
   sample = indices[0:int(len(indices) * 1.0 * percent_random)]
   fake_labels = []
@@ -321,12 +321,12 @@ def get_train_val_test_splits(X, y, max_points, seed, confusion, seed_batch,
     y_tmp = y_noise[indices]
     n_shuffle += 1
 
-  X_train = X_copy[indices[0:train_split]]
-  X_val = X_copy[indices[train_split:val_split]]
-  X_test = X_copy[indices[val_split:max_points]]
-  y_train = y_noise[indices[0:train_split]]
-  y_val = y_noise[indices[train_split:val_split]]
-  y_test = y_noise[indices[val_split:max_points]]
+  X_train = X_copy.iloc[indices[0:train_split]]
+  X_val = X_copy.iloc[indices[train_split:val_split]]
+  X_test = X_copy.iloc[indices[val_split:max_points]]
+  y_train = y_noise.iloc[indices[0:train_split]]
+  y_val = y_noise.iloc[indices[train_split:val_split]]
+  y_test = y_noise.iloc[indices[val_split:max_points]]
   # Make sure that we have enough observations of each class for 2-fold cv
   assert all(get_class_counts(y_noise, y_train[0:seed_batch]) >= 4)
   # Make sure that returned shuffled indices are correct

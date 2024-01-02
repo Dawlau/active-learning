@@ -41,14 +41,14 @@ from sklearn.preprocessing import StandardScaler
 
 from absl import app
 from absl import flags
-from tensorflow import gfile
+import tensorflow.compat.v1.gfile as gfile
 
 from sampling_methods.constants import AL_MAPPING
 from sampling_methods.constants import get_AL_sampler
 from sampling_methods.constants import get_wrapper_AL_mapping
 from utils import utils
 
-flags.DEFINE_string("dataset", "letter", "Dataset name")
+flags.DEFINE_string("dataset", "wine", "Dataset name")
 flags.DEFINE_string("sampling_method", "margin",
                     ("Name of sampling method to use, can be any defined in "
                      "AL_MAPPING in sampling_methods.constants"))
@@ -62,9 +62,9 @@ flags.DEFINE_float(
     ("Can be float or integer.  Float indicates batch size as a percentage "
      "of training data size.")
 )
-flags.DEFINE_integer("trials", 1,
+flags.DEFINE_integer("trials", 10,
                      "Number of curves to create using different seeds")
-flags.DEFINE_integer("seed", 1, "Seed to use for rng and random state")
+flags.DEFINE_integer("seed", 42, "Seed to use for rng and random state")
 # TODO(lisha): add feature noise to simulate data outliers
 flags.DEFINE_string("confusions", "0.", "Percentage of labels to randomize")
 flags.DEFINE_string("active_sampling_percentage", "1.0",
@@ -78,9 +78,9 @@ flags.DEFINE_string(
 flags.DEFINE_string("normalize_data", "False", "Whether to normalize the data.")
 flags.DEFINE_string("standardize_data", "True",
                     "Whether to standardize the data.")
-flags.DEFINE_string("save_dir", "/tmp/toy_experiments",
+flags.DEFINE_string("save_dir", "/home/scur1917/active-learning/toy_experiments",
                     "Where to save outputs")
-flags.DEFINE_string("data_dir", "/tmp/data",
+flags.DEFINE_string("data_dir", "/home/scur1917/active-learning/data",
                     "Directory with predownloaded and saved datasets.")
 flags.DEFINE_string("max_dataset_size", "15000",
                     ("maximum number of datapoints to include in data "
@@ -210,7 +210,7 @@ def generate_one_curve(X,
   results = {}
   data_sizes = []
   accuracy = []
-  selected_inds = range(seed_batch)
+  selected_inds = list(range(seed_batch))
 
   # If select model is None, use score_model
   same_score_select = False
@@ -226,10 +226,11 @@ def generate_one_curve(X,
 
     assert n_train == len(selected_inds)
     data_sizes.append(n_train)
+    y_train = np.squeeze(y_train)
 
     # Sort active_ind so that the end results matches that of uniform sampling
-    partial_X = X_train[sorted(selected_inds)]
-    partial_y = y_train[sorted(selected_inds)]
+    partial_X = X_train[sorted(selected_inds), :]
+    partial_y = y_train.iloc[sorted(selected_inds)]
     score_model.fit(partial_X, partial_y)
     if not same_score_select:
       select_model.fit(partial_X, partial_y)
@@ -240,7 +241,7 @@ def generate_one_curve(X,
     n_sample = min(batch_size, train_size - len(selected_inds))
     select_batch_inputs = {
         "model": select_model,
-        "labeled": dict(zip(selected_inds, y_train[selected_inds])),
+        "labeled": dict(zip(selected_inds, y_train.iloc[selected_inds])),
         "eval_acc": accuracy[-1],
         "X_test": X_val,
         "y_test": y_val,
@@ -255,7 +256,7 @@ def generate_one_curve(X,
 
   # Check that the returned indice are correct and will allow mapping to
   # training set from original data
-  assert all(y_noise[indices[selected_inds]] == y_train[selected_inds])
+  assert all(y_noise.iloc[indices[selected_inds]] == y_train.iloc[selected_inds])
   results["accuracy"] = accuracy
   results["selected_inds"] = selected_inds
   results["data_sizes"] = data_sizes
