@@ -220,7 +220,7 @@ def get_model(method, seed=13):
   # but should probably tune.
   if method == "logistic":
     model = LogisticRegression(random_state=seed, multi_class="multinomial",
-                               solver="lbfgs", max_iter=200)
+                               solver="lbfgs", max_iter=500)
     params = {"C": [10.0**(i) for i in range(-4, 5)]}
   elif method == "logistic_ovr":
     model = LogisticRegression(random_state=seed)

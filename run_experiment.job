@@ -2,10 +2,10 @@
 
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --job-name=InstallEnvironment
+#SBATCH --job-name=RunExperiments
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=40
+#SBATCH --time=08:00:00
 #SBATCH --output=slurm_output_run_experiment.out
 
 module purge
@@ -13,5 +13,29 @@ module load 2022
 module load Anaconda3/2022.05
 module load TensorFlow/2.11.0-foss-2022a-CUDA-11.7.0
 
+datasets="wine vehicle dna"
+sampling_methods="uniform margin informative_diverse graph_density mixture_of_samplers-margin-0.33-informative_diverse-0.33-uniform-0.34"
+declare -a confusions=(0.0 0.2 0.4)
+score_methods="kernel_svm logistic"
+num_seeds=5
+
 cd "$HOME/active-learning"
-srun python -u run_experiment.py
+
+for dataset in $datasets
+do
+    for sampling_method in $sampling_methods
+    do
+        for confusion in ${confusions[@]}
+        do
+            for score_method in $score_methods
+            do
+                srun python -u run_experiment.py \
+                    --dataset $dataset \
+                    --sampling_method $sampling_method \
+                    --trials $num_seeds \
+                    --confusion $confusion \
+                    --score_method $score_method
+            done
+        done
+    done
+done

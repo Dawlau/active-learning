@@ -48,47 +48,52 @@ from sampling_methods.constants import get_AL_sampler
 from sampling_methods.constants import get_wrapper_AL_mapping
 from utils import utils
 
-flags.DEFINE_string("dataset", "wine", "Dataset name")
-flags.DEFINE_string("sampling_method", "margin",
-                    ("Name of sampling method to use, can be any defined in "
-                     "AL_MAPPING in sampling_methods.constants"))
-flags.DEFINE_float(
-    "warmstart_size", 0.02,
-    ("Can be float or integer.  Float indicates percentage of training data "
-     "to use in the initial warmstart model")
-)
-flags.DEFINE_float(
-    "batch_size", 0.02,
-    ("Can be float or integer.  Float indicates batch size as a percentage "
-     "of training data size.")
-)
-flags.DEFINE_integer("trials", 10,
-                     "Number of curves to create using different seeds")
-flags.DEFINE_integer("seed", 42, "Seed to use for rng and random state")
-# TODO(lisha): add feature noise to simulate data outliers
-flags.DEFINE_string("confusions", "0.", "Percentage of labels to randomize")
-flags.DEFINE_string("active_sampling_percentage", "1.0",
-                    "Mixture weights on active sampling.")
-flags.DEFINE_string(
-    "score_method", "logistic",
-    "Method to use to calculate accuracy.")
-flags.DEFINE_string(
-    "select_method", "None",
-    "Method to use for selecting points.")
-flags.DEFINE_string("normalize_data", "False", "Whether to normalize the data.")
-flags.DEFINE_string("standardize_data", "True",
-                    "Whether to standardize the data.")
-flags.DEFINE_string("save_dir", "/home/scur1917/active-learning/toy_experiments",
-                    "Where to save outputs")
-flags.DEFINE_string("data_dir", "/home/scur1917/active-learning/data",
-                    "Directory with predownloaded and saved datasets.")
-flags.DEFINE_string("max_dataset_size", "15000",
-                    ("maximum number of datapoints to include in data "
-                     "zero indicates no limit"))
-flags.DEFINE_float("train_horizon", "1.0",
-                   "how far to extend learning curve as a percent of train")
-flags.DEFINE_string("do_save", "True",
-                    "whether to save log and results")
+import warnings
+warnings.filterwarnings("ignore")
+
+import argparse
+
+parser = argparse.ArgumentParser(description='Active Learning Experiment Arguments')
+
+# Add arguments to the parser
+parser.add_argument('--dataset', type=str, default='wine', help='Dataset name')
+parser.add_argument('--sampling_method', type=str, default='margin', help='Name of sampling method to use')
+parser.add_argument('--warmstart_size', type=float, default=0.02, help='Initial warmstart model size')
+parser.add_argument('--batch_size', type=float, default=0.02, help='Batch size as a percentage of training data size')
+parser.add_argument('--trials', type=int, default=10, help='Number of curves to create using different seeds')
+parser.add_argument('--seed', type=int, default=42, help='Seed to use for rng and random state')
+parser.add_argument('--confusion', type=str, default='0.', help='Percentage of labels to randomize')
+parser.add_argument('--active_sampling_percentage', type=str, default='1.0', help='Mixture weights on active sampling')
+parser.add_argument('--score_method', type=str, default='logistic', help='Method to calculate accuracy')
+parser.add_argument('--select_method', type=str, default='None', help='Method to use for selecting points')
+parser.add_argument('--normalize_data', type=str, default='False', help='Whether to normalize the data')
+parser.add_argument('--standardize_data', type=str, default='True', help='Whether to standardize the data')
+parser.add_argument('--save_dir', type=str, default='/home/scur1917/active-learning/toy_experiments', help='Directory to save outputs')
+parser.add_argument('--data_dir', type=str, default='/home/scur1917/active-learning/data', help='Directory with datasets')
+parser.add_argument('--max_dataset_size', type=str, default='15000', help='Maximum number of datapoints in data')
+parser.add_argument('--train_horizon', type=float, default=1.0, help='Extent of learning curve as percent of train')
+parser.add_argument('--do_save', type=str, default='True', help='Whether to save log and results')
+
+args = parser.parse_args()
+
+flags.DEFINE_string("dataset", args.dataset, "Dataset name")
+flags.DEFINE_string("sampling_method", args.sampling_method, "Name of sampling method to use")
+flags.DEFINE_float("warmstart_size", args.warmstart_size, "Initial warmstart model size")
+flags.DEFINE_float("batch_size", args.batch_size, "Batch size as a percentage of training data size")
+flags.DEFINE_integer("trials", args.trials, "Number of curves to create using different seeds")
+flags.DEFINE_integer("seed", args.seed, "Seed to use for rng and random state")
+flags.DEFINE_string("confusion", args.confusion, "Percentage of labels to randomize")
+flags.DEFINE_string("active_sampling_percentage", args.active_sampling_percentage, "Mixture weights on active sampling")
+flags.DEFINE_string("score_method", args.score_method, "Method to calculate accuracy")
+flags.DEFINE_string("select_method", args.select_method, "Method to use for selecting points")
+flags.DEFINE_string("normalize_data", args.normalize_data, "Whether to normalize the data")
+flags.DEFINE_string("standardize_data", args.standardize_data, "Whether to standardize the data")
+flags.DEFINE_string("save_dir", args.save_dir, "Directory to save outputs")
+flags.DEFINE_string("data_dir", args.data_dir, "Directory with datasets")
+flags.DEFINE_string("max_dataset_size", args.max_dataset_size, "Maximum number of datapoints in data")
+flags.DEFINE_float("train_horizon", args.train_horizon, "Extent of learning curve as percent of train")
+flags.DEFINE_string("do_save", args.do_save, "Whether to save log and results")
+
 FLAGS = flags.FLAGS
 
 
@@ -292,7 +297,7 @@ def main(argv):
         save_dir, "log-" + strftime("%Y-%m-%d-%H-%M-%S", gmtime()) + ".txt")
     sys.stdout = utils.Logger(filename)
 
-  confusions = [float(t) for t in FLAGS.confusions.split(" ")]
+  confusions = [float(t) for t in FLAGS.confusion.split(" ")]
   mixtures = [float(t) for t in FLAGS.active_sampling_percentage.split(" ")]
   all_results = {}
   max_dataset_size = None if FLAGS.max_dataset_size == "0" else int(
@@ -333,7 +338,8 @@ def main(argv):
     filename = ("results_score_" + FLAGS.score_method +
                 "_select_" + FLAGS.select_method +
                 "_norm_" + str(normalize_data) +
-                "_stand_" + str(standardize_data))
+                "_stand_" + str(standardize_data) + 
+                "_confusion_" + str(FLAGS.confusion))
     existing_files = gfile.Glob(os.path.join(save_dir, filename + "*.pkl"))
     filename = os.path.join(save_dir,
                             filename + "_" + str(1000+len(existing_files))[1:] + ".pkl")
