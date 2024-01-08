@@ -31,17 +31,28 @@ from absl import app
 from absl import flags
 import tensorflow.compat.v1.gfile as gfile
 
+import argparse
+
+parser = argparse.ArgumentParser(description='Active Learning Experiment Arguments')
+
+# Add arguments to the parser
+parser.add_argument('--dataset', type=str, default='wine', help='Dataset name')
+
+args = parser.parse_args()
+
 flags.DEFINE_string('source_dir',
                     '/home/scur1917/active-learning/toy_experiments',
                     'Directory with the output to analyze.')
 flags.DEFINE_string('save_dir', '/home/scur1917/active-learning/charts',
                     'Directory to save charts.')
-flags.DEFINE_string('dataset', 'wine', 'Dataset to analyze.')
+flags.DEFINE_string('dataset', args.dataset, 'Dataset to analyze.')
 flags.DEFINE_string(
     'sampling_methods',
-    ('margin'),
+    ('uniform,graph_density,margin,informative_diverse,mixture_of_samplers-margin-0.33-informative_diverse-0.33-uniform-0.34'),
     'Comma separated string of sampling methods to include in chart.')
-flags.DEFINE_string('scoring_methods', 'logistic',
+flags.DEFINE_string('scoring_methods', 'logistic,kernel_svm',
+                    'Comma separated string of scoring methods to chart.')
+flags.DEFINE_string('confusions', '0.0,0.2,0.4',
                     'Comma separated string of scoring methods to chart.')
 flags.DEFINE_bool('normalize', False, 'Chart runs using normalized data.')
 flags.DEFINE_bool('standardize', True, 'Chart runs using standardized data.')
@@ -52,7 +63,9 @@ FLAGS = flags.FLAGS
 def combine_results(files, diff=False):
   all_results = {}
   for f in files:
+    print("File: ", f)
     data = pickle.load(gfile.FastGFile(f, 'rb'))
+
     for k in data:
       if isinstance(k, tuple):
         data[k].pop('noisy_targets')
@@ -77,7 +90,7 @@ def combine_results(files, diff=False):
   return all_results
 
 
-def plot_results(all_results, score_method, norm, stand, sampler_filter):
+def plot_results(all_results, score_method, norm, stand, sampler_filter, confusion_filter):
   colors = {
       'margin':
           'gold',
@@ -87,7 +100,7 @@ def plot_results(all_results, score_method, norm, stand, sampler_filter):
           'r',
       'mixture_of_samplers-margin-0.33-informative_diverse-0.33-uniform-0.34':
           'b',
-      'pred_expert_advice_trip_agg':
+      'graph_density':
           'g'
   }
   labels = {
@@ -99,8 +112,8 @@ def plot_results(all_results, score_method, norm, stand, sampler_filter):
           'margin:0.33,informative_diverse:0.33, uniform:0.34',
       'informative_diverse':
           'informative and diverse',
-      'pred_expert_advice_trip_agg':
-          'expert: margin,informative_diverse,uniform'
+      'graph_density':
+          'graph density'
   }
   markers = {
       'margin':
@@ -111,22 +124,27 @@ def plot_results(all_results, score_method, norm, stand, sampler_filter):
           '>',
       'informative_diverse':
           'None',
-      'pred_expert_advice_trip_agg':
+      'graph_density':
           'p'
   }
+
   fields = all_results['tuple_keys']
   fields = dict(zip(fields, range(len(fields))))
 
   for k in all_results.keys():
     sampler = k[fields['sampler']]
+    confusion = k[fields['confusion']]
+
     if (isinstance(k, tuple) and
         k[fields['score_method']] == score_method and
         k[fields['standardize']] == stand and
         k[fields['normalize']] == norm and
-        (sampler_filter is None or sampler in sampler_filter)):
+        (sampler_filter is None or sampler in sampler_filter) and
+        (confusion_filter is None or confusion == confusion_filter)):
       results = all_results[k]
-      n_trials = len(results['accuracy'])#.shape[0]
+      n_trials = len(results['accuracy'])
       x = results['data_sizes'][0]
+
       mean_acc = np.mean(results['accuracy'], axis=0)
       CI_acc = np.std(results['accuracy'], axis=0) / np.sqrt(n_trials) * 2.96
       if sampler == 'uniform':
@@ -185,8 +203,11 @@ def get_normalize(filename):
 
 def get_standardize(filename):
   return get_between(
-      filename, '_stand_', filename[filename.rfind('_'):]) == 'True'
+      filename, '_stand_', '_confusion_') == 'True'
 
+def get_confusion(filename):
+  return get_between(
+      filename, '_confusion_', filename[filename.rfind('_'):])
 
 def main(argv):
   del argv  # Unused.
@@ -196,14 +217,17 @@ def main(argv):
                                    FLAGS.dataset + '_charts.pdf')
   sampling_methods = FLAGS.sampling_methods.split(',')
   scoring_methods = FLAGS.scoring_methods.split(',')
+  confusions = FLAGS.confusions.split(',')
   files = gfile.Glob(
       os.path.join(FLAGS.source_dir, FLAGS.dataset + '*/results*.pkl'))
+
   files = [
       f for f in files
       if (get_sampling_method(FLAGS.dataset, f) in sampling_methods and
           get_scoring_method(f) in scoring_methods and
           get_normalize(f) == FLAGS.normalize and
-          get_standardize(f) == FLAGS.standardize)
+          get_standardize(f) == FLAGS.standardize and
+          get_confusion(f) in confusions)
   ]
 
   print('Reading in %d files...' % len(files))
@@ -213,15 +237,17 @@ def main(argv):
   print('Plotting charts...')
   plt.style.use('ggplot')
   for m in scoring_methods:
-    plot_results(
-        all_results,
-        m,
-        FLAGS.normalize,
-        FLAGS.standardize,
-        sampler_filter=sampling_methods)
-    plt.title('Dataset: %s, Score Method: %s' % (FLAGS.dataset, m))
-    pdf.savefig()
-    plt.close()
+    for c in confusions:
+      plot_results(
+          all_results,
+          m,
+          FLAGS.normalize,
+          FLAGS.standardize,
+          sampler_filter=sampling_methods,
+          confusion_filter=float(c))
+      plt.title('Dataset: %s, Score Method: %s, Confusion: %s' % (FLAGS.dataset, m, c))
+      pdf.savefig()
+      plt.close()
   pdf.close()
 
 

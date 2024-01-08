@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=PlotCharts
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=10
+#SBATCH --time=04:00:00
+#SBATCH --output=slurm_output_plot_charts.out
+
+module purge
+module load 2022
+module load Anaconda3/2022.05
+module load TensorFlow/2.11.0-foss-2022a-CUDA-11.7.0
+
+datasets="wine vehicle dna"
+
+cd "$HOME/active-learning"
+
+for dataset in $datasets
+do
+    srun python -u utils/chart_data.py --dataset $dataset
+done
